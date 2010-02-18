@@ -1,5 +1,4 @@
 module Pipemaster
-  VERSION = "0.0.1"
 
   DEFAULT_HOST = "127.0.0.1"
   DEFAULT_PORT = 7887
