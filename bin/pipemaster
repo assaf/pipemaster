@@ -3,12 +3,11 @@
 require "pipemaster"
 require "optparse"
 
-ENV["RACK_ENV"] ||= "development"
+ENV["PIPE_ENV"] ||= "development"
 server = false
 daemonize = false
 listeners = []
 options = { :listeners => listeners }
-host, port = Pipemaster::DEFAULT_HOST, Pipemaster::DEFAULT_PORT
 
 opts = OptionParser.new("", 24, '  ') do |opts|
   opts.banner = "Usage: #{File.basename($0)}\n" \
@@ -80,10 +79,13 @@ end
 
 if server
 
+  gem "unicorn"
+  require "pipemaster/server"
+  require "unicorn/launcher"
   config = ARGV[0] || "Pipefile"
   abort "configuration file #{config} not found" unless File.exist?(config)
   options[:config_file] = config
-  Dir.chdir File.dirname(config)
+  options[:working_directory] = File.dirname(config)
   Unicorn::Launcher.daemonize!(options) if daemonize
   Pipemaster.run(options)
 

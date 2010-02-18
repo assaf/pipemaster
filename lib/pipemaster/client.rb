@@ -1,19 +1,43 @@
+require "socket"
+
 module Pipemaster
+  # Pipemaster client.  Use this to send commands to the Pipemaster server.
+  #
+  # For example:
+  #   c = Pipemaster::Client.new
+  #   c.request "motd"
+  #   puts c.output.string
+  #   => "Toilet out of order please use floor below."
+  #
+  #   c = Pipemaster::Client.new(9988)
+  #   c.input = File.open("image.png")
+  #   c.output = File.open("thumbnail.png", "w")
+  #   c.request "transform", "thumbnail"
   class Client
     BUFFER_SIZE = 16 * 1024
 
+    # Address can be "x.x.x.x:port", ":port" or UNIX socket file name.
     def initialize(address)
       @address = expand_addr(address || DEFAULT_LISTEN)
     end
 
-    attr_accessor :input, :output
+    # Set this to supply an input stream (for commands that read from $stdin).
+    attr_accessor :input
 
-    def request(*args)
+    # Set this to supply an output stream, or read the output (defaults to
+    # StringIO).
+    attr_accessor :output
+
+    # Make a request.  First argument is the command name.  All other arguments
+    # are optional.  Returns the exit code (usually 0).  Will raise IOError if
+    # it can't talk to the server, or the server closed the connection
+    # prematurely.
+    def request(command, *args)
       # Connect and send arguments.
       socket = connect(@address)
       socket.sync = true
-      args = args.join("\0")
-      socket << [args.size].pack("N") << args
+      header = ([command] + args).join("\0")
+      socket << [header.size].pack("N") << header
       socket.flush
 
       @output ||= StringIO.new
@@ -46,7 +70,7 @@ module Pipemaster
         @output.write stdoutbuf if stdoutbuf
         stdoutbuf = socket.readpartial(BUFFER_SIZE)
       end
-      if stdoutbuf
+      if stdoutbuf && stdoutbuf.size > 0
         status = stdoutbuf[-1]
         @output.write stdoutbuf[0..-2]
         return status.ord

@@ -1,22 +1,49 @@
+You pipe from here, to a process that runs over there.  Pipemaster forks,
+redirects and runs your command.
+
+== Why
+
+I've got a short task I want to perform.  To validate an incoming email, parse
+the message and store the results in the database(*).  I setup Postfix to pipe
+incoming emails into a Ruby script.
+
+Ruby processes are fairly cheap, until you get into loading the mail library,
+the database library, the ORM, the application logic, the ... you get the
+picture.
+
+I use Pipemaster to fire up the main process once, and the Pipemaster client to
+run commands on that server.  Still have to make sure the code is light and
+fast, but I did eliminate the significant initialization overhead.
+
+As you can guess, Pipemaster supports piping input and output streams, and uses
+forking (sorry Windows; for JRuby see Nailgun).
+
+* Processing emails as they come allows the application to reject unauthorized
+  senders immediately by replying with an SMTP code.  The alternative, accepting
+  the email and later on sending a bounce, leads to backscatter (see
+  http://en.wikipedia.org/wiki/Backscatter_(e-mail)).
+
+
 == Using Pipemaster
 
-1. Create a Pipemaster file.  For example:
+Step 1:  Create a Pipemaster file.  For example:
 
   #!highlight/ruby
-  require File.dirname(__FILE__) + '/config/environment'
-
-  command :test do |*args|
-    puts [$stdin.read.strip, Rails.version].join(" ")
+  command :echo do |*args|
+    first, rest = $stdin.read.split
+    $stdout << [first, args, rest].flatten.join(" ")
   end
 
-2. Start the Pipemaster server:
+Step 2:  Fire up the Pipemaster server:
 
   $ pipemaster --server
+  I, [2010-02-18T12:57:57.739230 #5460]  INFO -- : master process ready
+  I, [2010-02-18T12:57:57.739606 #5460]  INFO -- : listening on addr=127.0.0.1:7887 fd=3
+  
+Step 3:  For a new shell, execute a command:
 
-3. Execute a command:
-
-  $ echo "This is Rails " | pipemaster test 
-  This is Rails 2.3.5
+  $ echo "Stand down!" | ruby -Ilib bin/pipemaster echo upside
+  Stand upside down!
 
 
 == License

@@ -29,6 +29,7 @@ require 'tempfile'
 require 'fileutils'
 require 'logger'
 require 'pipemaster'
+require 'pipemaster/server'
 require 'pipemaster/client'
 
 if ENV['DEBUG']

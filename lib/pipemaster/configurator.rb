@@ -67,6 +67,22 @@ module Pipemaster
       Process.euid != uid and Process::UID.change_privilege(uid)
     end
 
+    # Sets the working directory for Pipemaster.  Defaults to the location
+    # of the Pipefile.  This may be a symlink.
+    def working_directory(path)
+      # just let chdir raise errors
+      path = File.expand_path(path)
+      if config_file &&
+         config_file[0] != ?/ &&
+         ! test(?r, "#{path}/#{config_file}")
+        raise ArgumentError,
+              "pipefile=#{config_file} would not be accessible in" \
+              " working_directory=#{path}"
+      end
+      Dir.chdir(path)
+      Server::START_CTX[:cwd] = ENV["PWD"] = path
+    end
+
     # Sets after_fork hook to a given block.  This block will be called by
     # the worker after forking.
     def after_fork(*args, &block)
@@ -200,13 +216,6 @@ module Pipemaster
     # Same as stderr_path, except for $stdout
     def stdout_path(path)
       set_path(:stdout_path, path)
-    end
-
-    # Sets the working directory for Pipemaster.  This ensures USR2 will
-    # start a new instance of Pipemaster in this directory.  This may be
-    # a symlink.
-    def working_directory(path)
-      super
     end
 
   private

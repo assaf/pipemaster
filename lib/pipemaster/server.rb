@@ -1,8 +1,8 @@
-module Pipemaster
+require "unicorn"
+require "pipemaster/worker"
+require "pipemaster/configurator"
 
-  DEFAULT_HOST = "127.0.0.1"
-  DEFAULT_PORT = 7887
-  DEFAULT_LISTEN = "#{DEFAULT_HOST}:#{DEFAULT_PORT}"
+module Pipemaster
 
   class << self
     def run(options = {})
@@ -110,14 +110,14 @@ module Pipemaster
 
     def load_config!
       begin
-        logger.info "reloading config_file=#{config.config_file}"
+        logger.info "reloading pipefile=#{config.config_file}"
         config[:listeners].replace(init_listeners)
         config.reload
         config.commit!(self)
         Unicorn::Util.reopen_logs
-        logger.info "done reloading config_file=#{config.config_file}"
+        logger.info "done reloading pipefile=#{config.config_file}"
       rescue => e
-        logger.error "error reloading config_file=#{config.config_file}: " \
+        logger.error "error reloading pipefile=#{config.config_file}: " \
                      "#{e.class} #{e.message}"
       end
     end
