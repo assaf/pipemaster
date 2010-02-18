@@ -118,10 +118,14 @@ module Pipemaster
 
         eval File.read("#{command}.rb")
         logger.info "#{Process.pid} completed"
-        socket.write "\0"
+        socket.write 0.chr
+      rescue SystemExit => ex
+        logger.info "#{Process.pid} completed"
+        socket.write ex.status.chr
       rescue Exception => ex
         logger.info "#{Process.pid} failed: #{ex.message}" 
-        socket.write "#{ex.class.name}: #{ex.message}\n\1"
+        socket.write "#{ex.class.name}: #{ex.message}\n"
+        socket.write 1.chr
       ensure
         socket.close_write
         socket.close
