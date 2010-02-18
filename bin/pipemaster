@@ -71,7 +71,7 @@ opts = OptionParser.new("", 24, '  ') do |opts|
   end
 
   opts.on_tail("-v", "--version", "Show version") do
-    puts "unicorn v#{Pipemaster::VERSION}"
+    puts "Pipemaster v#{Pipemaster::VERSION}"
     exit
   end
 
