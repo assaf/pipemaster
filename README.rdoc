@@ -1,3 +1,24 @@
+== Using Pipemaster
+
+1. Create a Pipemaster file.  For example:
+
+  #!highlight/ruby
+  require File.dirname(__FILE__) + '/config/environment'
+
+  command :test do |*args|
+    puts [$stdin.read.strip, Rails.version].join(" ")
+  end
+
+2. Start the Pipemaster server:
+
+  $ pipemaster --server
+
+3. Execute a command:
+
+  $ echo "This is Rails " | pipemaster test 
+  This is Rails 2.3.5
+
+
 == License
 
 Pipemaster is copyright of Assaf Arkin.  It is based on the awesome Unicorn Web

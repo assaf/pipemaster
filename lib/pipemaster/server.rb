@@ -13,19 +13,19 @@ module Pipemaster
   class Server < Unicorn::HttpServer
 
     def initialize(options = {})
-      self.init_listeners = options[:listeners] ? options[:listeners].dup : []
+      self.reexec_pid = 0
       self.ready_pipe = options.delete(:ready_pipe)
+      self.init_listeners = options[:listeners] ? options[:listeners].dup : []
       self.config = Configurator.new(options.merge(:use_defaults => true))
       config.commit!(self, :skip => [:listeners, :pid])
     end
+
+    attr_accessor :commands
 
     def start
       trap(:QUIT) { stop }
       [:TERM, :INT].each { |sig| trap(sig) { stop false } }
       self.pid = config[:pid]
-
-      logger.info "Loading application"
-      listen(DEFAULT_LISTEN, {}) if LISTENERS.empty?
 
       proc_name "pipemaster"
       logger.info "master process ready" # test_exec.rb relies on this message
@@ -41,9 +41,13 @@ module Pipemaster
         Unicorn::Util.reopen_logs
         logger.info "master done reopening logs"
       end
+      reloaded = nil
+      trap(:HUP)  { reloaded = true ; load_config! }
       trap(:USR2) { reexec }
 
       begin
+        listen(DEFAULT_LISTEN, {}) if LISTENERS.empty?
+        reloaded = false
         while selected = Kernel.select(LISTENERS)
           selected.first.each do |socket|
             client = socket.accept_nonblock
@@ -55,6 +59,7 @@ module Pipemaster
       rescue Errno::EINTR
         retry
       rescue Errno::EBADF # Shutdown
+        retry if reloaded
       rescue => ex
         logger.error "Unhandled master loop exception #{ex.inspect}."
         logger.error ex.backtrace.join("\n")
@@ -96,6 +101,20 @@ module Pipemaster
       end
     end
 
+    def load_config!
+      begin
+        logger.info "reloading config_file=#{config.config_file}"
+        config[:listeners].replace(init_listeners)
+        config.reload
+        config.commit!(self)
+        Unicorn::Util.reopen_logs
+        logger.info "done reloading config_file=#{config.config_file}"
+      rescue => e
+        logger.error "error reloading config_file=#{config.config_file}: " \
+                     "#{e.class} #{e.message}"
+      end
+    end
+
     def process_request(socket, worker)
       trap(:QUIT) { exit }
       [:TERM, :INT].each { |sig| trap(sig) { exit! } }
@@ -110,12 +129,12 @@ module Pipemaster
       begin
         length = socket.readpartial(4).unpack("N")[0]
         command, *args = socket.read(length).split("\0")
-        ARGV.replace args
 
         proc_name "pipemaster: #{command}"
         logger.info "#{Process.pid} #{command} #{args.join(' ')}"
 
-        eval File.read("#{command}.rb")
+        ARGV.replace args
+        commands[command.to_sym].call *args
         logger.info "#{Process.pid} completed"
         socket.write 0.chr
       rescue SystemExit => ex
@@ -130,21 +149,6 @@ module Pipemaster
         socket.close
         exit
       end
-    end
-
-    autoload :Etc, 'etc'
-    def user(user, group = nil)
-      # we do not protect the caller, checking Process.euid == 0 is
-      # insufficient because modern systems have fine-grained
-      # capabilities.  Let the caller handle any and all errors.
-      uid = Etc.getpwnam(user).uid
-      gid = Etc.getgrnam(group).gid if group
-      Unicorn::Util.chown_logs(uid, gid)
-      if gid && Process.egid != gid
-        Process.initgroups(user, gid)
-        Process::GID.change_privilege(gid)
-      end
-      Process.euid != uid and Process::UID.change_privilege(uid)
     end
 
   end

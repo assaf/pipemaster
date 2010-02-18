@@ -10,15 +10,16 @@ module Pipemaster
     DEFAULTS = {
       :logger => Logger.new($stderr),
       :after_fork => lambda { |server, worker|
-          server.logger.info("worker=#{worker.nr} spawned pid=#{$$}")
+          server.logger.info("spawned pid=#{$$}")
         },
       :before_fork => lambda { |server, worker|
-          server.logger.info("worker=#{worker.nr} spawning...")
+          server.logger.info("spawning...")
         },
       :before_exec => lambda { |server|
           server.logger.info("forked child re-executing...")
         },
       :pid => nil,
+      :commands => {},
       :timeout => 60
     }
 
@@ -57,7 +58,7 @@ module Pipemaster
       set[key]
     end
 
-    # sets object to the +new+ Logger-like object.  The new logger-like
+    # Sets object to the +new+ Logger-like object.  The new logger-like
     # object must respond to the following methods:
     #  +debug+, +info+, +warn+, +error+, +fatal+, +close+
     def logger(new)
@@ -67,6 +68,25 @@ module Pipemaster
       end
 
       set[:logger] = new
+    end
+
+    def command(name, &block)
+      set[:commands][name.to_sym] = block
+    end
+
+    autoload :Etc, 'etc'
+    def user(user, group = nil)
+      # we do not protect the caller, checking Process.euid == 0 is
+      # insufficient because modern systems have fine-grained
+      # capabilities.  Let the caller handle any and all errors.
+      uid = Etc.getpwnam(user).uid
+      gid = Etc.getgrnam(group).gid if group
+      Unicorn::Util.chown_logs(uid, gid)
+      if gid && Process.egid != gid
+        Process.initgroups(user, gid)
+        Process::GID.change_privilege(gid)
+      end
+      Process.euid != uid and Process::UID.change_privilege(uid)
     end
 
     # Sets after_fork hook to a given block.  This block will be called by

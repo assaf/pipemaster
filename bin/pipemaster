@@ -12,8 +12,8 @@ host, port = Pipemaster::DEFAULT_HOST, Pipemaster::DEFAULT_PORT
 
 opts = OptionParser.new("", 24, '  ') do |opts|
   opts.banner = "Usage: #{File.basename($0)}\n" \
-                "[ruby options] [pipemaster options] file args\n" \
-                "[ruby options] [pipemaster options] --server [config file]"
+                "[ruby options] [pipemaster options] command [args]\n" \
+                "[ruby options] [pipemaster options] --server [Pipefile]"
 
   opts.separator "Ruby options:"
 
@@ -52,7 +52,7 @@ opts = OptionParser.new("", 24, '  ') do |opts|
 
   opts.on("-E", "--env ENVIRONMENT",
           "use ENVIRONMENT for defaults (default: development)") do |e|
-    ENV["RACK_ENV"] = e
+    ENV["PIPE_ENV"] = e
   end
 
   opts.on("-S", "--server", "run as server (default: client)") do |s|
@@ -80,10 +80,10 @@ end
 
 if server
 
-  config = ARGV[0] || "config/pipemaster.rb"
+  config = ARGV[0] || "Pipefile"
   abort "configuration file #{config} not found" unless File.exist?(config)
   options[:config_file] = config
-
+  Dir.chdir File.dirname(config)
   Unicorn::Launcher.daemonize!(options) if daemonize
   Pipemaster.run(options)
 
