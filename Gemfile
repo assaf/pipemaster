@@ -1,4 +1,5 @@
 source "http://gemcutter.org"
-gem "unicorn", "0.96.1"
 gem "gemcutter"
+gem "rake"
+gem "unicorn", "0.96.1"
 gem "yard"

@@ -24,7 +24,7 @@ end
 task :default=>:test
 desc "Run all tests using Redis mock (also default task)"
 Rake::TestTask.new do |task|
-  task.test_files = FileList['test/*_test.rb']
+  task.test_files = FileList['test/unit/test_*.rb']
   if Rake.application.options.trace
     #task.warning = true
     task.verbose = true

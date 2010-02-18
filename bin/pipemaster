@@ -88,41 +88,11 @@ if server
   Pipemaster.run(options)
 
 else
-  BUFFER_SIZE = 4000
 
-  socket = TCPSocket.new("127.0.0.1", 7887)
-  socket.sync = true
-  args = ARGV.join("\0")
-  socket << [args.size].pack("N") << args
-  socket.flush
-  stdinbuf, stdoutbuf = ' ' * BUFFER_SIZE, nil
-  unless $stdin.isatty
-    while selected = select([$stdin, socket])
-      begin
-        if selected.first.include?($stdin)
-          $stdin.readpartial(BUFFER_SIZE, stdinbuf)
-          socket.write stdinbuf
-        elsif selected.first.include?(socket)
-          exit 1 if socket.eof?
-          $stdout.write stdoutbuf if stdoutbuf
-          stdoutbuf = socket.readpartial(BUFFER_SIZE)
-        end
-      rescue EOFError
-        break
-      end
-    end
-  end
-  socket.close_write
-  while selected = select([socket])
-    break if socket.eof?
-    $stdout.write stdoutbuf if stdoutbuf
-    stdoutbuf = socket.readpartial(BUFFER_SIZE)
-  end
-  if stdoutbuf
-    status = stdoutbuf[-1]
-    $stdout.write stdoutbuf[0..-2]
-    exit status.ord
-  else
-    exit 1
-  end
+  require "pipemaster/client"
+  client = Pipemaster::Client.new(listeners.first)
+  client.input = $stdin unless $stdin.isatty
+  client.output = $stdout
+  exit client.request(*ARGV)
+
 end

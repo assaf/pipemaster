@@ -1,6 +1,6 @@
 Gem::Specification.new do |spec|
   spec.name           = "pipemaster"
-  spec.version        = "0.2.0"
+  spec.version        = "0.3.0"
   spec.author         = "Assaf Arkin"
   spec.email          = "assaf@labnotes.org"
   spec.homepage       = "http://labnotes.org"
@@ -14,4 +14,5 @@ Gem::Specification.new do |spec|
   spec.extra_rdoc_files = "README.rdoc", "CHANGELOG"
   spec.rdoc_options     = "--title", "Pipemaster #{spec.version}", "--main", "README.rdoc",
                           "--webcvs", "http://github.com/assaf/#{spec.name}"
+  spec.add_dependency("unicorn", ["~> 0.96"])
 end

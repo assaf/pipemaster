@@ -4,7 +4,7 @@ require 'logger'
 module Pipemaster
 
   # Implements a simple DSL for configuring a Pipemaster server.
-  class Configurator < Struct.new(:set, :config_file)
+  class Configurator < Unicorn::Configurator
 
     # Default settings for Pipemaster
     DEFAULTS = {
@@ -29,52 +29,30 @@ module Pipemaster
       self.config_file = defaults.delete(:config_file)
       set.merge!(DEFAULTS) if use_defaults
       defaults.each { |key, value| self.send(key, value) }
+      Hash === set[:listener_opts] or
+          set[:listener_opts] = Hash.new { |hash,key| hash[key] = {} }
+      Array === set[:listeners] or set[:listeners] = []
       reload
-    end
-
-    def reload #:nodoc:
-      instance_eval(File.read(config_file), config_file) if config_file
-
-      # working_directory binds immediately (easier error checking that way),
-      # now ensure any paths we changed are correctly set.
-      [ :pid, :stderr_path, :stdout_path ].each do |var|
-        String === (path = set[var]) or next
-        path = File.expand_path(path)
-        test(?w, path) || test(?w, File.dirname(path)) or \
-              raise ArgumentError, "directory for #{var}=#{path} not writable"
-      end
-    end
-
-    def commit!(server, options = {}) #:nodoc:
-      skip = options[:skip] || []
-      set.each do |key, value|
-        value == :unset and next
-        skip.include?(key) and next
-        server.__send__("#{key}=", value)
-      end
-    end
-
-    def [](key) # :nodoc:
-      set[key]
     end
 
     # Sets object to the +new+ Logger-like object.  The new logger-like
     # object must respond to the following methods:
     #  +debug+, +info+, +warn+, +error+, +fatal+, +close+
     def logger(new)
-      %w(debug info warn error fatal close).each do |m|
-        new.respond_to?(m) and next
-        raise ArgumentError, "logger=#{new} does not respond to method=#{m}"
-      end
-
-      set[:logger] = new
+      super
     end
 
+    def commands(hash)
+      set[:commands] = hash
+    end
+
+    # Defines a command.
     def command(name, &block)
       set[:commands][name.to_sym] = block
     end
 
     autoload :Etc, 'etc'
+    # Change user/group ownership of the master process.
     def user(user, group = nil)
       # we do not protect the caller, checking Process.euid == 0 is
       # insufficient because modern systems have fine-grained
@@ -118,6 +96,14 @@ module Pipemaster
       Array === addresses or addresses = Array(addresses)
       addresses.map! { |addr| expand_addr(addr) }
       set[:listeners] = addresses
+    end
+
+    # Does nothing interesting for now.
+    def timeout(seconds)
+    end
+
+    # Does nothing interesting for now.
+    def worker_processes(nr)
     end
 
     # Adds an +address+ to the existing listener set.
@@ -193,26 +179,7 @@ module Pipemaster
     #
     # Default: 0 (world read/writable)
     def listen(address, opt = {})
-      address = expand_addr(address)
-      if String === address
-        [ :umask, :backlog, :sndbuf, :rcvbuf, :tries ].each do |key|
-          value = opt[key] or next
-          Integer === value or
-            raise ArgumentError, "not an integer: #{key}=#{value.inspect}"
-        end
-        [ :tcp_nodelay, :tcp_nopush ].each do |key|
-          (value = opt[key]).nil? and next
-          TrueClass === value || FalseClass === value or
-            raise ArgumentError, "not boolean: #{key}=#{value.inspect}"
-        end
-        unless (value = opt[:delay]).nil?
-          Numeric === value or
-            raise ArgumentError, "not numeric: delay=#{value.inspect}"
-        end
-        set[:listener_opts][address].merge!(opt)
-      end
-
-      set[:listeners] << address
+      super
     end
 
     # Sets the +path+ for the PID file of the Pipemaster master process
@@ -239,67 +206,12 @@ module Pipemaster
     # start a new instance of Pipemaster in this directory.  This may be
     # a symlink.
     def working_directory(path)
-      # just let chdir raise errors
-      path = File.expand_path(path)
-      if config_file &&
-         config_file[0] != ?/ &&
-         ! test(?r, "#{path}/#{config_file}")
-        raise ArgumentError,
-              "config_file=#{config_file} would not be accessible in" \
-              " working_directory=#{path}"
-      end
-      Dir.chdir(path)
-      Server::START_CTX[:cwd] = ENV["PWD"] = path
-    end
-
-    # expands "unix:path/to/foo" to a socket relative to the current path
-    # expands pathnames of sockets if relative to "~" or "~username"
-    # expands "*:port and ":port" to "0.0.0.0:port"
-    def expand_addr(address) #:nodoc
-      return "0.0.0.0:#{address}" if Integer === address
-      return address unless String === address
-
-      case address
-      when %r{\Aunix:(.*)\z}
-        File.expand_path($1)
-      when %r{\A~}
-        File.expand_path(address)
-      when %r{\A(?:\*:)?(\d+)\z}
-        "0.0.0.0:#$1"
-      when %r{\A(.*):(\d+)\z}
-        # canonicalize the name
-        packed = Socket.pack_sockaddr_in($2.to_i, $1)
-        Socket.unpack_sockaddr_in(packed).reverse!.join(':')
-      else
-        address
-      end
+      super
     end
 
   private
 
-    def set_path(var, path) #:nodoc:
-      case path
-      when NilClass, String
-        set[var] = path
-      else
-        raise ArgumentError
-      end
-    end
-
-    def set_hook(var, my_proc, req_arity = 2) #:nodoc:
-      case my_proc
-      when Proc
-        arity = my_proc.arity
-        (arity == req_arity) or \
-          raise ArgumentError,
-                "#{var}=#{my_proc.inspect} has invalid arity: " \
-                "#{arity} (need #{req_arity})"
-      when NilClass
-        my_proc = DEFAULTS[var]
-      else
-        raise ArgumentError, "invalid type: #{var}=#{my_proc.inspect}"
-      end
-      set[var] = my_proc
+    def preload_app(bool)
     end
 
   end

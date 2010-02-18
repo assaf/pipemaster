@@ -46,7 +46,14 @@ module Pipemaster
       trap(:USR2) { reexec }
 
       begin
-        listen(DEFAULT_LISTEN, {}) if LISTENERS.empty?
+        config_listeners = config[:listeners].dup
+        if config_listeners.empty? && LISTENERS.empty?
+          config_listeners << DEFAULT_LISTEN
+          init_listeners << DEFAULT_LISTEN
+          START_CTX[:argv] << "-s#{DEFAULT_LISTEN}"
+        end
+        config_listeners.each { |addr| listen(addr) }
+
         reloaded = false
         while selected = Kernel.select(LISTENERS)
           selected.first.each do |socket|
@@ -128,13 +135,14 @@ module Pipemaster
       $stdin.reopen socket
       begin
         length = socket.readpartial(4).unpack("N")[0]
-        command, *args = socket.read(length).split("\0")
+        name, *args = socket.read(length).split("\0")
 
-        proc_name "pipemaster: #{command}"
-        logger.info "#{Process.pid} #{command} #{args.join(' ')}"
+        proc_name "pipemaster: #{name}"
+        logger.info "#{Process.pid} #{name} #{args.join(' ')}"
 
         ARGV.replace args
-        commands[command.to_sym].call *args
+        command = commands[name.to_sym] or raise ArgumentError, "No command #{name}"
+        command.call *args
         logger.info "#{Process.pid} completed"
         socket.write 0.chr
       rescue SystemExit => ex
