@@ -7,7 +7,7 @@ require "pipemaster/socket_helper"
 module Pipemaster
 
   class Server < Struct.new(:listener_opts, :timeout, :logger,
-                            :before_fork, :after_fork, :before_exec,
+                            :app, :before_fork, :after_fork, :before_exec,
                             :pid, :reexec_pid, :init_listeners,
                             :master_pid, :config, :ready_pipe)
 
@@ -81,24 +81,25 @@ module Pipemaster
       trap(:QUIT) { stop }
       [:TERM, :INT].each { |sig| trap(sig) { stop false } }
       self.pid = config[:pid]
-
-      proc_name "pipemaster"
-      logger.info "master process ready" # test_exec.rb relies on this message
-      if ready_pipe
-        ready_pipe.syswrite($$.to_s)
-        ready_pipe.close rescue nil
-        self.ready_pipe = nil
-      end
-
       trap(:CHLD) { reap_all_workers }
       trap :USR1 do
         logger.info "master reopening logs..."
         Pipemaster::Util.reopen_logs
         logger.info "master done reopening logs"
       end
-      reloaded = nil
       trap(:HUP)  { reloaded = true ; load_config! }
       trap(:USR2) { reexec }
+
+      proc_name "pipemaster"
+      logger.info "loading application"
+      app.call if app
+
+      logger.info "master process ready" # test_exec.rb relies on this message
+      if ready_pipe
+        ready_pipe.syswrite($$.to_s)
+        ready_pipe.close rescue nil
+        self.ready_pipe = nil
+      end
 
       config_listeners = config[:listeners].dup
       if config_listeners.empty? && LISTENERS.empty?
@@ -108,6 +109,7 @@ module Pipemaster
       end
       config_listeners.each { |addr| listen(addr) }
 
+      reloaded = nil
       begin
         reloaded = false
         while selected = Kernel.select(LISTENERS)

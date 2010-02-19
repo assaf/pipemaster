@@ -116,6 +116,12 @@ module Pipemaster
       Server::START_CTX[:cwd] = ENV["PWD"] = path
     end
 
+    # Application is a block we run at startup.  This is the heavy stuff (e.g.
+    # starting up ActiveRecord) we want to run once and fork from.
+    def app(*args, &block)
+      set_hook(:app, block_given? ? block : args[0], 0)
+    end
+
     # Sets after_fork hook to a given block.  This block will be called by
     # the worker after forking.
     def after_fork(*args, &block)

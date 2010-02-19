@@ -95,4 +95,17 @@ class ServerTest < Test::Unit::TestCase
     tmp.close!
   end
 
+  def test_loading_app
+    iam = "sad"
+    start :app => lambda { iam.replace "happy" }, :commands => { :iam => lambda { $stdout << iam } }
+    assert_equal "happy", hit("127.0.0.1:#@port", :iam).last
+  end
+
+  def test_reloading_app
+    text = "foo"
+    start :app => lambda { text << "bar" }, :commands => { :text => lambda { $stdout << text } }
+    assert_equal "foobar", hit("127.0.0.1:#@port", :text).last
+    Process.kill "HUP", @pid 
+    assert_equal "foobar", hit("127.0.0.1:#@port", :text).last
+  end
 end
