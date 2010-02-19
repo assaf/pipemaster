@@ -13,9 +13,13 @@ task :push do
   sh "gem push #{spec.name}-#{spec.version}.gem"
 end
 
-desc "Install #{spec.name} locally"
-task :install do
+desc "Build #{spec.name}-#{spec.version}.gem"
+task :build=>:test do
   sh "gem build #{spec.name}.gemspec"
+end
+
+desc "Install #{spec.name} locally"
+task :install=>:build do
   sudo = "sudo" unless File.writable?( Gem::ConfigMap[:bindir])
   sh "#{sudo} gem install #{spec.name}-#{spec.version}.gem"
 end

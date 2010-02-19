@@ -1,9 +1,9 @@
 Gem::Specification.new do |spec|
   spec.name           = "pipemaster"
-  spec.version        = "0.3.1"
+  spec.version        = "0.4.0"
   spec.author         = "Assaf Arkin"
   spec.email          = "assaf@labnotes.org"
-  spec.homepage       = "http://labnotes.org"
+  spec.homepage       = "http://github.com/assaf/pipemaster"
   spec.summary        = "Use the fork"
   spec.post_install_message = "To get started run pipemaster --help"
 

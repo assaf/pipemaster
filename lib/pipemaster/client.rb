@@ -1,24 +1,44 @@
 require "socket"
+require "pipemaster"
 
 module Pipemaster
   # Pipemaster client.  Use this to send commands to the Pipemaster server.
   #
   # For example:
   #   c = Pipemaster::Client.new
-  #   c.request "motd"
+  #   c.run :motd
   #   puts c.output.string
   #   => "Toilet out of order please use floor below."
   #
   #   c = Pipemaster::Client.new(9988)
   #   c.input = File.open("image.png")
   #   c.output = File.open("thumbnail.png", "w")
-  #   c.request "transform", "thumbnail"
+  #   c.run :transform, "thumbnail"
   class Client
     BUFFER_SIZE = 16 * 1024
 
-    # Address can be "x.x.x.x:port", ":port" or UNIX socket file name.
-    def initialize(address)
-      @address = expand_addr(address || DEFAULT_LISTEN)
+    class << self
+      # Pipe stdin/stdout into the command.  For example:
+      #   exit Pipemaster.pipe(:echo)
+      def pipe(command, *args)
+        new.capture($stdin, $stdout).run(command, *args)
+      end
+
+      # Address to use by default for new clients.  Leave as nil to use the
+      # default (Pipemaster::DEFAULT_LISTEN).
+      attr_accessor :address
+    end
+
+    # Creates a new client.  Accepts optional address.  If missing, uses the
+    # global address (see Pipemaster::Client::address).  Address can be port
+    # number, hostname (default port), "host:port" or socket file name.
+    #
+    # Examples:
+    #   Pipemaster::Client.new 7890
+    #   Pipemaster::Client.new "localhost:7890"
+    #   Pipemaster::Client.new
+    def initialize(address = nil)
+      @address = expand_addr(address || Client.address || DEFAULT_LISTEN)
     end
 
     # Set this to supply an input stream (for commands that read from $stdin).
@@ -28,11 +48,18 @@ module Pipemaster
     # StringIO).
     attr_accessor :output
 
+    # Captures input and output.  For example:
+    #   Pipemaster.new(7890).capture($stdin, $stdout).run(:echo)
+    def capture(input, output)
+      self.input, self.output = input, output
+      self
+    end
+
     # Make a request.  First argument is the command name.  All other arguments
     # are optional.  Returns the exit code (usually 0).  Will raise IOError if
     # it can't talk to the server, or the server closed the connection
     # prematurely.
-    def request(command, *args)
+    def run(command, *args)
       # Connect and send arguments.
       socket = connect(@address)
       socket.sync = true

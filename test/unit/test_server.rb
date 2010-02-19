@@ -1,11 +1,5 @@
 # -*- encoding: binary -*-
 
-# Copyright (c) 2005 Zed A. Shaw 
-# You can redistribute it and/or modify it under the same terms as Ruby.
-#
-# Additional work donated by contributors.  See http://mongrel.rubyforge.org/attributions.html
-# for more information.
-
 require 'test/test_helper'
 
 class ServerTest < Test::Unit::TestCase
@@ -72,10 +66,8 @@ class ServerTest < Test::Unit::TestCase
     tmp.write "foo bar"
     tmp.flush
     tmp.rewind
-    client.input = tmp
-    output = StringIO.new
-    client.output = output
-    client.request :reverse
+    client.capture tmp, StringIO.new
+    client.run :reverse
     assert_equal "rab oof", client.output.string
   ensure
     tmp.close!

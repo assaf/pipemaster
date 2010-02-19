@@ -70,7 +70,7 @@ end
 
 def hit(address, *args)
   client = Pipemaster::Client.new(address)
-  code = client.request(*args)
+  code = client.run(*args)
   [code, client.output.string]
 end
 
@@ -123,20 +123,6 @@ def try_require(lib)
     true
   rescue LoadError
     false
-  end
-end
-
-# sometimes the server may not come up right away
-def retry_hit(uris = [])
-  tries = DEFAULT_TRIES
-  begin
-    hit(uris)
-  rescue Errno::EINVAL, Errno::ECONNREFUSED => err
-    if (tries -= 1) > 0
-      sleep DEFAULT_RES
-      retry
-    end
-    raise err
   end
 end
 

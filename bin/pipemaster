@@ -1,4 +1,4 @@
-#!/this/will/be/overwritten/or/wrapped/anyways/do/not/worry/ruby
+#!/usr/bin/env ruby
 # -*- encoding: binary -*-
 require "pipemaster"
 require "optparse"
@@ -8,13 +8,14 @@ server = false
 daemonize = false
 listeners = []
 options = { :listeners => listeners }
+tty = false
 
 opts = OptionParser.new("", 24, '  ') do |opts|
-  opts.banner = "Usage: #{File.basename($0)}\n" \
-                "[ruby options] [pipemaster options] command [args]\n" \
-                "[ruby options] [pipemaster options] --server [Pipefile]"
+  opts.banner = "Usage: \n" \
+                "  #{File.basename($0)} [ruby options] [pipemaster options] command [args]\n" \
+                "  #{File.basename($0)} [ruby options] [pipemaster options] --server [Pipefile]\n"
 
-  opts.separator "Ruby options:"
+  opts.separator "\nRuby options:"
 
   lineno = 1
   opts.on("-e", "--eval LINE", "evaluate a LINE of code") do |line|
@@ -40,7 +41,29 @@ opts = OptionParser.new("", 24, '  ') do |opts|
     require library
   end
 
-  opts.separator "Pipemaster options:"
+  opts.separator "\nPipemaster client:"
+
+  opts.on("-t", "--tty", "capture input from terminal (default: false)") do |t|
+    tty = t ? true : false
+  end
+
+  opts.separator "\nPipemaster server:"
+
+  opts.on("-S", "--server", "run as server (default: client)") do |s|
+    server = s ? true : false
+  end
+
+  opts.on("-E", "--env ENVIRONMENT",
+          "use ENVIRONMENT for defaults (default: development)") do |e|
+    ENV["PIPE_ENV"] = e
+  end
+
+  opts.on("-D", "--daemonize", "run daemonized in the background") do |d|
+    daemonize = d ? true : false
+    server = true if daemonize
+  end
+
+  opts.separator "\nCommon options:"
 
   opts.on("-s", "--socket {HOST:PORT|PATH}",
           "communicate on HOST:PORT or PATH",
@@ -49,30 +72,16 @@ opts = OptionParser.new("", 24, '  ') do |opts|
     listeners << address
   end
 
-  opts.on("-E", "--env ENVIRONMENT",
-          "use ENVIRONMENT for defaults (default: development)") do |e|
-    ENV["PIPE_ENV"] = e
-  end
-
-  opts.on("-S", "--server", "run as server (default: client)") do |s|
-    server = s ? true : false
-  end
-
-  opts.on("-D", "--daemonize", "run daemonized in the background") do |d|
-    daemonize = d ? true : false
-  end
-
-  opts.separator "Common options:"
-
-  opts.on_tail("-h", "--help", "Show this message") do
+  opts.on("-h", "--help", "Show this message") do
     puts opts.to_s.gsub(/^.*DEPRECATED.*$/s, '')
     exit
   end
 
-  opts.on_tail("-v", "--version", "Show version") do
+  opts.on("-v", "--version", "Show version") do
     puts "Pipemaster v#{Pipemaster::VERSION}"
     exit
   end
+
 
   opts.parse! ARGV
 end
@@ -92,9 +101,7 @@ if server
 else
 
   require "pipemaster/client"
-  client = Pipemaster::Client.new(listeners.first)
-  client.input = $stdin unless $stdin.isatty
-  client.output = $stdout
-  exit client.request(*ARGV)
+  input = $stdin if tty || !$stdin.isatty 
+  exit Pipemaster::Client.new(listeners.first).capture(input, $stdout).run(*ARGV)
 
 end

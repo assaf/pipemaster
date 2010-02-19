@@ -47,8 +47,8 @@ module Pipemaster
     end
 
     # Defines a command.
-    def command(name, &block)
-      set[:commands][name.to_sym] = block
+    def command(name, a_proc = nil, &block)
+      set[:commands][name.to_sym] = a_proc || block
     end
 
     autoload :Etc, 'etc'

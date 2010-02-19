@@ -1,0 +1,6 @@
+0.4.0
+* Added: pipe command (client).
+* Added: Pipemaster::Client gets pipe and capture methods, global address setting.
+* Added: Command line client gets --tty option, when used, captures stdin when running in terminal.
+* Added: Configurator command method now takes proc/method as second argument.
+* Fixed: USR2 signal now properly restarts server.
