@@ -125,6 +125,7 @@ module Pipemaster
       rescue => ex
         logger.error "Unhandled master loop exception #{ex.inspect}."
         logger.error ex.backtrace.join("\n")
+        sleep 1 # This is often failure to bind, so wait a bit
         retry
       end
       self

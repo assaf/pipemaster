@@ -1,13 +1,13 @@
 Gem::Specification.new do |spec|
   spec.name           = "pipemaster"
-  spec.version        = "0.4.0"
+  spec.version        = "0.4.1"
   spec.author         = "Assaf Arkin"
   spec.email          = "assaf@labnotes.org"
   spec.homepage       = "http://github.com/assaf/pipemaster"
   spec.summary        = "Use the fork"
   spec.post_install_message = "To get started run pipemaster --help"
 
-  spec.files          = Dir["{bin,lib,test}/**/*", "CHANGELOG", "LICENSE", "README.rdoc", "Rakefile", "Gemfile", "pipemaster.gemspec"]
+  spec.files          = Dir["{bin,lib,test,etc}/**/*", "CHANGELOG", "LICENSE", "README.rdoc", "Rakefile", "Gemfile", "pipemaster.gemspec"]
   spec.executables    = %w{pipe pipemaster}
 
   spec.has_rdoc         = true

@@ -1,3 +1,8 @@
+0.4.1
+* Added: Service control file in etc/pipemaster (puts this in your /etc/init.d directory)
+* Fixed: pipemaster command always defaulting to run as daemon.
+* Fixed: Added time delay when retrying after master loop exception (typically, failure to bind on port).
+
 0.4.0 (2010-02-19)
 * Added: pipe command (client).
 * Added: Pipemaster::Client gets pipe and capture methods, global address setting.

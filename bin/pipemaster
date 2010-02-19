@@ -76,5 +76,5 @@ config = ARGV[0] || "Pipefile"
 abort "configuration file #{config} not found" unless File.exist?(config)
 options[:config_file] = config
 options[:working_directory] = File.dirname(config)
-Pipemaster::Launcher.daemonize!(options)
+Pipemaster::Launcher.daemonize!(options) if daemonize
 Pipemaster::Server.run(options)
