@@ -48,8 +48,8 @@ Step 3:  For a new shell, execute a command:
 
 == License
 
-Pipemaster is copyright of Assaf Arkin.  It is based on the awesome Unicorn Web
-server and therefore uses the same license.
+Pipemaster is copyright of Assaf Arkin.  It is heavily based on the awesome
+Unicorn Web server and therefore uses the same license.
 
 Unicorn is copyright 2009 by all contributors (see logs in git).
 It is based on Mongrel and carries the same license.

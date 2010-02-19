@@ -1,13 +1,15 @@
 require 'socket'
 require 'logger'
+require 'pipemaster/util'
 
 module Pipemaster
 
   # Implements a simple DSL for configuring a Pipemaster server.
-  class Configurator < Unicorn::Configurator
+  class Configurator < Struct.new(:set, :config_file)
 
     # Default settings for Pipemaster
     DEFAULTS = {
+      :timeout => 60,
       :logger => Logger.new($stderr),
       :after_fork => lambda { |server, worker|
           server.logger.info("spawned pid=#{$$}")
@@ -19,8 +21,7 @@ module Pipemaster
           server.logger.info("forked child re-executing...")
         },
       :pid => nil,
-      :commands => {},
-      :timeout => 60
+      :commands => {}
     }
 
     def initialize(defaults = {}) #:nodoc:
@@ -35,13 +36,45 @@ module Pipemaster
       reload
     end
 
+    def reload #:nodoc:
+      instance_eval(File.read(config_file), config_file) if config_file
+
+      # working_directory binds immediately (easier error checking that way),
+      # now ensure any paths we changed are correctly set.
+      [ :pid, :stderr_path, :stdout_path ].each do |var|
+        String === (path = set[var]) or next
+        path = File.expand_path(path)
+        test(?w, path) || test(?w, File.dirname(path)) or \
+              raise ArgumentError, "directory for #{var}=#{path} not writable"
+      end
+    end
+
+    def commit!(server, options = {}) #:nodoc:
+      skip = options[:skip] || []
+      set.each do |key, value|
+        value == :unset and next
+        skip.include?(key) and next
+        server.__send__("#{key}=", value)
+      end
+    end
+
+    def [](key) # :nodoc:
+      set[key]
+    end
+
     # Sets object to the +new+ Logger-like object.  The new logger-like
     # object must respond to the following methods:
     #  +debug+, +info+, +warn+, +error+, +fatal+, +close+
     def logger(new)
-      super
+      %w(debug info warn error fatal close).each do |m|
+        new.respond_to?(m) and next
+        raise ArgumentError, "logger=#{new} does not respond to method=#{m}"
+      end
+
+      set[:logger] = new
     end
 
+    # Set commands from a hash (name=>proc).
     def commands(hash)
       set[:commands] = hash
     end
@@ -59,7 +92,7 @@ module Pipemaster
       # capabilities.  Let the caller handle any and all errors.
       uid = Etc.getpwnam(user).uid
       gid = Etc.getgrnam(group).gid if group
-      Unicorn::Util.chown_logs(uid, gid)
+      Pipemaster::Util.chown_logs(uid, gid)
       if gid && Process.egid != gid
         Process.initgroups(user, gid)
         Process::GID.change_privilege(gid)
@@ -116,10 +149,15 @@ module Pipemaster
 
     # Does nothing interesting for now.
     def timeout(seconds)
+      # Not implemented yet.
     end
 
-    # Does nothing interesting for now.
-    def worker_processes(nr)
+    # This is for internal API use only, do not use it in your Pipemaster
+    # config file.  Use listen instead.
+    def listeners(addresses) # :nodoc:
+      Array === addresses or addresses = Array(addresses)
+      addresses.map! { |addr| expand_addr(addr) }
+      set[:listeners] = addresses
     end
 
     # Adds an +address+ to the existing listener set.
@@ -195,7 +233,26 @@ module Pipemaster
     #
     # Default: 0 (world read/writable)
     def listen(address, opt = {})
-      super
+      address = expand_addr(address)
+      if String === address
+        [ :umask, :backlog, :sndbuf, :rcvbuf, :tries ].each do |key|
+          value = opt[key] or next
+          Integer === value or
+            raise ArgumentError, "not an integer: #{key}=#{value.inspect}"
+        end
+        [ :tcp_nodelay, :tcp_nopush ].each do |key|
+          (value = opt[key]).nil? and next
+          TrueClass === value || FalseClass === value or
+            raise ArgumentError, "not boolean: #{key}=#{value.inspect}"
+        end
+        unless (value = opt[:delay]).nil?
+          Numeric === value or
+            raise ArgumentError, "not numeric: delay=#{value.inspect}"
+        end
+        set[:listener_opts][address].merge!(opt)
+      end
+
+      set[:listeners] << address
     end
 
     # Sets the +path+ for the PID file of the Pipemaster master process
@@ -218,9 +275,54 @@ module Pipemaster
       set_path(:stdout_path, path)
     end
 
+    # expands "unix:path/to/foo" to a socket relative to the current path
+    # expands pathnames of sockets if relative to "~" or "~username"
+    # expands "*:port and ":port" to "0.0.0.0:port"
+    def expand_addr(address) #:nodoc
+      return "0.0.0.0:#{address}" if Integer === address
+      return address unless String === address
+
+      case address
+      when %r{\Aunix:(.*)\z}
+        File.expand_path($1)
+      when %r{\A~}
+        File.expand_path(address)
+      when %r{\A(?:\*:)?(\d+)\z}
+        "0.0.0.0:#$1"
+      when %r{\A(.*):(\d+)\z}
+        # canonicalize the name
+        packed = Socket.pack_sockaddr_in($2.to_i, $1)
+        Socket.unpack_sockaddr_in(packed).reverse!.join(':')
+      else
+        address
+      end
+    end
+
   private
 
-    def preload_app(bool)
+    def set_path(var, path) #:nodoc:
+      case path
+      when NilClass, String
+        set[var] = path
+      else
+        raise ArgumentError
+      end
+    end
+
+    def set_hook(var, my_proc, req_arity = 2) #:nodoc:
+      case my_proc
+      when Proc
+        arity = my_proc.arity
+        (arity == req_arity) or \
+          raise ArgumentError,
+                "#{var}=#{my_proc.inspect} has invalid arity: " \
+                "#{arity} (need #{req_arity})"
+      when NilClass
+        my_proc = DEFAULTS[var]
+      else
+        raise ArgumentError, "invalid type: #{var}=#{my_proc.inspect}"
+      end
+      set[var] = my_proc
     end
 
   end

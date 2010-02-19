@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 # -*- encoding: binary -*-
-require "pipemaster"
+require "pipemaster/server"
+require "pipemaster/launcher"
 require "optparse"
 
 ENV["PIPE_ENV"] ||= "development"
@@ -11,9 +12,7 @@ options = { :listeners => listeners }
 tty = false
 
 opts = OptionParser.new("", 24, '  ') do |opts|
-  opts.banner = "Usage: \n" \
-                "  #{File.basename($0)} [ruby options] [pipemaster options] command [args]\n" \
-                "  #{File.basename($0)} [ruby options] [pipemaster options] --server [Pipefile]\n"
+  opts.banner = "Usage: #{File.basename($0)} [ruby options] [pipemaster options] [Pipefile]"
 
   opts.separator "\nRuby options:"
 
@@ -41,17 +40,7 @@ opts = OptionParser.new("", 24, '  ') do |opts|
     require library
   end
 
-  opts.separator "\nPipemaster client:"
-
-  opts.on("-t", "--tty", "capture input from terminal (default: false)") do |t|
-    tty = t ? true : false
-  end
-
-  opts.separator "\nPipemaster server:"
-
-  opts.on("-S", "--server", "run as server (default: client)") do |s|
-    server = s ? true : false
-  end
+  opts.separator "\nPipemaster options:"
 
   opts.on("-E", "--env ENVIRONMENT",
           "use ENVIRONMENT for defaults (default: development)") do |e|
@@ -60,10 +49,7 @@ opts = OptionParser.new("", 24, '  ') do |opts|
 
   opts.on("-D", "--daemonize", "run daemonized in the background") do |d|
     daemonize = d ? true : false
-    server = true if daemonize
   end
-
-  opts.separator "\nCommon options:"
 
   opts.on("-s", "--socket {HOST:PORT|PATH}",
           "communicate on HOST:PORT or PATH",
@@ -86,22 +72,9 @@ opts = OptionParser.new("", 24, '  ') do |opts|
   opts.parse! ARGV
 end
 
-if server
-
-  gem "unicorn"
-  require "pipemaster/server"
-  require "unicorn/launcher"
-  config = ARGV[0] || "Pipefile"
-  abort "configuration file #{config} not found" unless File.exist?(config)
-  options[:config_file] = config
-  options[:working_directory] = File.dirname(config)
-  Unicorn::Launcher.daemonize!(options) if daemonize
-  Pipemaster.run(options)
-
-else
-
-  require "pipemaster/client"
-  input = $stdin if tty || !$stdin.isatty 
-  exit Pipemaster::Client.new(listeners.first).capture(input, $stdout).run(*ARGV)
-
-end
+config = ARGV[0] || "Pipefile"
+abort "configuration file #{config} not found" unless File.exist?(config)
+options[:config_file] = config
+options[:working_directory] = File.dirname(config)
+Pipemaster::Launcher.daemonize!(options)
+Pipemaster::Server.run(options)

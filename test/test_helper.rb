@@ -90,7 +90,7 @@ def unused_port(addr = '127.0.0.1')
   begin
     begin
       port = base + rand(32768 - base)
-      while port == Unicorn::Const::DEFAULT_PORT
+      while port == Pipemaster::DEFAULT_PORT
         port = base + rand(32768 - base)
       end
 
@@ -106,7 +106,7 @@ def unused_port(addr = '127.0.0.1')
     # condition could allow the random port we just chose to reselect itself
     # when running tests in parallel with gmake.  Create a lock file while
     # we have the port here to ensure that does not happen .
-    lock_path = "#{Dir::tmpdir}/unicorn_test.#{addr}:#{port}.lock"
+    lock_path = "#{Dir::tmpdir}/pipemaster_test.#{addr}:#{port}.lock"
     lock = File.open(lock_path, File::WRONLY|File::CREAT|File::EXCL, 0600)
     at_exit { File.unlink(lock_path) rescue nil }
   rescue Errno::EEXIST
