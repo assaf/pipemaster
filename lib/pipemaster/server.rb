@@ -78,6 +78,7 @@ module Pipemaster
     attr_accessor :commands
 
     def start
+      self.master_pid = $$
       trap(:QUIT) { stop }
       [:TERM, :INT].each { |sig| trap(sig) { stop false } }
       self.pid = config[:pid]
