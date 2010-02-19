@@ -136,6 +136,23 @@ module Pipemaster
       logger.info "master complete"
       unlink_pid_safe(pid) if pid
     end
+    
+    # Terminates all workers, but does not exit master process
+    def stop(graceful = true)
+      self.listeners = []
+      limit = Time.now + timeout
+      until WORKERS.empty? || Time.now > limit
+        kill_each_worker(graceful ? :QUIT : :TERM)
+        sleep(0.1)
+        reap_all_workers
+      end
+      kill_each_worker(:KILL)
+    end
+
+    # delivers a signal to each worker
+    def kill_each_worker(signal)
+      WORKERS.keys.each { |wpid| kill_worker(signal, wpid) }
+    end
 
     # replaces current listener set with +listeners+.  This will
     # close the socket if it will not exist in the new listener set
@@ -390,7 +407,7 @@ module Pipemaster
       rescue Exception => ex
         logger.info "#{Process.pid} failed: #{ex.message}" 
         socket.write "#{ex.class.name}: #{ex.message}\n"
-        socket.write 1.chr
+        socket.write 127.chr
       ensure
         socket.close_write
         socket.close

@@ -1,7 +1,10 @@
 0.4.1
 * Added: Service control file in etc/pipemaster (puts this in your /etc/init.d directory)
+* Added: pipe command gets --retcode/-c option to return exit code in case of failure.
+* Changed: Return status for errors is 127.
 * Fixed: pipemaster command always defaulting to run as daemon.
 * Fixed: Added time delay when retrying after master loop exception (typically, failure to bind on port).
+* Fixed: Can't stop server.
 
 0.4.0 (2010-02-19)
 * Added: pipe command (client).

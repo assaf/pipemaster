@@ -48,16 +48,38 @@ class ServerTest < Test::Unit::TestCase
 
   def test_no_command
     start
-    results = hit("127.0.0.1:#@port", "test")
-    assert_equal 1, results.first
+    result = hit("127.0.0.1:#@port", :nosuch)
+    assert_equal 127, result.first
+    assert_equal "ArgumentError: No command nosuch\n", result.last
   end
 
   def test_arguments
     start :commands => { :args => lambda { |x,y| $stdout << "#{x} - #{y}" } }
-    results = hit("127.0.0.1:#@port", "args", "foo", "bar")
-    assert_equal "foo - bar", results.last
+    result = hit("127.0.0.1:#@port", :args, "foo", "bar")
+    assert_equal "foo - bar", result.last
   end
 
+  def test_return_code
+    start :commands => { :success => lambda { "hi" }, :fail => lambda { fail }, :exit => lambda { exit 5 } }
+    assert_equal 0, hit("127.0.0.1:#@port", :success).first
+    assert_equal 127, hit("127.0.0.1:#@port", :fail).first
+    assert_equal 5, hit("127.0.0.1:#@port", :exit).first
+  end
+
+  def test_exit
+    start :commands => { :exit => lambda { exit 6 } }
+    result = hit("127.0.0.1:#@port", :exit)
+    assert_equal 6, result.first
+    assert_equal "", result.last
+  end
+
+  def test_error
+    start :commands => { :fail => lambda { fail "oops" } }
+    result = hit("127.0.0.1:#@port", :fail)
+    assert_equal 127, result.first
+    assert_equal "RuntimeError: oops\n", result.last
+  end
+  
   def test_streams
     start :commands => { :reverse => lambda { $stdout << $stdin.read.reverse } }
     client = Pipemaster::Client.new("127.0.0.1:#@port")
