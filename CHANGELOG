@@ -1,4 +1,7 @@
-0.4.1
+0.4.2 (2010-02-19)
+* Fix: Pipe command exits with retcode on successful completion.
+
+0.4.1 (2010-02-19)
 * Added: Service control file in etc/pipemaster (puts this in your /etc/init.d directory)
 * Added: pipe command gets --retcode/-c option to return exit code in case of failure.
 * Added: Pipefile uses app { } for application loading block.

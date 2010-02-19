@@ -5,7 +5,7 @@ require "optparse"
 
 ENV["PIPE_ENV"] ||= "development"
 address = nil
-ret_code = nil
+retcode = nil
 tty = false
 
 opts = OptionParser.new("", 24, '  ') do |opts|
@@ -22,7 +22,7 @@ opts = OptionParser.new("", 24, '  ') do |opts|
   end
 
   opts.on("-c", "--retcode CODE", "return code in case of failure (default: raise exception)") do |r|
-    ret_code = r
+    retcode = r
   end
 
   opts.on("-h", "--help", "Show this message") do
@@ -40,11 +40,8 @@ end
 
 begin
   input = $stdin if tty || !$stdin.isatty 
-  exit Pipemaster::Client.new(address).capture(input, $stdout).run(*ARGV)
+  retcode = Pipemaster::Client.new(address).capture(input, $stdout).run(*ARGV)
 rescue Exception=>ex
-  if ret_code
-    exit ret_code.to_i
-  else
-    raise
-  end
+  raise unless retcode
 end
+exit retcode.to_i

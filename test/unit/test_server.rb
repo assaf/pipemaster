@@ -60,10 +60,10 @@ class ServerTest < Test::Unit::TestCase
   end
 
   def test_return_code
-    start :commands => { :success => lambda { "hi" }, :fail => lambda { fail }, :exit => lambda { exit 5 } }
+    start :commands => { :success => lambda { "hi" }, :fail => lambda { fail }, :exit => lambda { exit 8 } }
     assert_equal 0, hit("127.0.0.1:#@port", :success).first
     assert_equal 127, hit("127.0.0.1:#@port", :fail).first
-    assert_equal 5, hit("127.0.0.1:#@port", :exit).first
+    assert_equal 8, hit("127.0.0.1:#@port", :exit).first
   end
 
   def test_exit

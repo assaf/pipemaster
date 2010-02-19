@@ -402,10 +402,10 @@ module Pipemaster
         ARGV.replace args
         command = commands[name.to_sym] or raise ArgumentError, "No command #{name}"
         command.call *args
-        logger.info "#{Process.pid} completed"
+        logger.info "#{Process.pid} exit"
         socket.write 0.chr
       rescue SystemExit => ex
-        logger.info "#{Process.pid} completed"
+        logger.info "#{Process.pid} exit with #{ex.status}"
         socket.write ex.status.chr
       rescue Exception => ex
         logger.info "#{Process.pid} failed: #{ex.message}" 
