@@ -36,13 +36,13 @@ Step 1:  Create a Pipemaster file.  For example:
 
 Step 2:  Fire up the Pipemaster server:
 
-  $ pipemaster --server
+  $ pipemaster
   I, [2010-02-18T12:57:57.739230 #5460]  INFO -- : master process ready
   I, [2010-02-18T12:57:57.739606 #5460]  INFO -- : listening on addr=127.0.0.1:7887 fd=3
   
 Step 3:  For a new shell, execute a command:
 
-  $ echo "Stand down!" | ruby -Ilib bin/pipemaster echo upside
+  $ echo "Stand down!" | pipe echo upside
   Stand upside down!
 
 
