@@ -21,6 +21,7 @@ module Pipemaster
           server.logger.info("forked child re-executing...")
         },
       :pid => nil,
+      :background => {},
       :commands => {}
     }
 
@@ -116,10 +117,10 @@ module Pipemaster
       Server::START_CTX[:cwd] = ENV["PWD"] = path
     end
 
-    # Application is a block we run at startup.  This is the heavy stuff (e.g.
-    # starting up ActiveRecord) we want to run once and fork from.
-    def app(*args, &block)
-      set_hook(:app, block_given? ? block : args[0], 0)
+    # Setup block runs on startup.  Put all the heavy stuff here (e.g. loading
+    # libraries, initializing state from database).
+    def setup(*args, &block)
+      set_hook(:setup, block_given? ? block : args[0], 0)
     end
 
     # Sets after_fork hook to a given block.  This block will be called by
@@ -142,6 +143,25 @@ module Pipemaster
     # There is no corresponding after_exec hook (for obvious reasons).
     def before_exec(*args, &block)
       set_hook(:before_exec, block_given? ? block : args[0], 1)
+    end
+
+    # Background process: the block is executed in a child process.  The master
+    # will tell the child process to stop/terminate using appropriate signals, 
+    # restart the process after a successful upgrade.  Block accepts two
+    # arguments: server and worker.
+    def background(name_or_hash, a_proc = nil, &block)
+      set[:background] = {} if set[:background] == :unset
+      if Hash === name_or_hash
+        name_or_hash.each_pair do |name, a_proc|
+          background name, a_proc
+        end
+      else
+        name = name_or_hash.to_sym
+        a_proc ||= block
+        arity = a_proc.arity
+        (arity == 2 || arity < 0) or raise ArgumentError, "background #{name}#{a_proc.inspect} has invalid arity: #{arity} (need 2)"
+        set[:background][name] = a_proc
+      end
     end
 
     # Sets listeners to the given +addresses+, replacing or augmenting the

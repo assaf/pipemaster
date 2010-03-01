@@ -13,7 +13,7 @@ class ServerTest < Test::Unit::TestCase
       redirect_test_io do
         wait_master_ready("test_stderr.#$$.log")
         File.truncate("test_stderr.#$$.log", 0)
-        Process.kill 9, @pid
+        Process.kill :QUIT, @pid
       end
     end
   end
@@ -22,7 +22,7 @@ class ServerTest < Test::Unit::TestCase
     redirect_test_io do
       @server = Pipemaster::Server.new({:listeners => [ "127.0.0.1:#{@port}" ]}.merge(options || {}))
       @pid = fork { @server.start }
-      at_exit { Process.kill @pid, 9 }
+      at_exit { Process.kill :QUIT, @pid }
       wait_master_ready("test_stderr.#$$.log")
     end
   end
@@ -95,17 +95,57 @@ class ServerTest < Test::Unit::TestCase
     tmp.close!
   end
 
-  def test_loading_app
+  def test_running_setup
     iam = "sad"
-    start :app => lambda { iam.replace "happy" }, :commands => { :iam => lambda { $stdout << iam } }
+    start :setup => lambda { iam.replace "happy" }, :commands => { :iam => lambda { $stdout << iam } }
     assert_equal "happy", hit("127.0.0.1:#@port", :iam).last
   end
 
-  def test_reloading_app
+  def test_running_setup_again
     text = "foo"
-    start :app => lambda { text << "bar" }, :commands => { :text => lambda { $stdout << text } }
+    start :setup => lambda { text << "bar" }, :commands => { :text => lambda { $stdout << text } }
     assert_equal "foobar", hit("127.0.0.1:#@port", :text).last
-    Process.kill "HUP", @pid 
+    Process.kill :HUP, @pid 
     assert_equal "foobar", hit("127.0.0.1:#@port", :text).last
   end
+
+  def test_running_background
+    sync = Tempfile.new("sync")
+    start :background => { :chmod => lambda { |*_| sync.chmod 0 while sleep 0.01 } }
+    assert_equal 0, sync.stat.mode & 1
+    sync.chmod 1 ; sleep 0.1
+    assert_equal 0, sync.stat.mode & 1
+  ensure
+    sync.close!
+  end
+
+  def test_stopping_background
+    sync = Tempfile.new("sync")
+    start :background => { :chmod => lambda { |*_| sync.chmod 0 while sleep 0.01 } }
+    sync.chmod 1 ; sleep 0.1
+    assert_equal 0, sync.stat.mode & 1
+    Process.kill :QUIT, @pid 
+    sleep 0.1
+    sync.chmod 1 ; sleep 0.1
+    assert_equal 1, sync.stat.mode & 1
+  ensure
+    sync.close!
+  end
+
+  def test_restarting_background
+    config = Tempfile.new("config")
+    config.write "$flag = 0" ; config.flush
+    sync = Tempfile.new("sync")
+    start :config_file => config.path, :background => { :chmod => lambda { |*_| sync.chmod $flag while sleep 0.01 } }
+    sync.chmod 1 ; sleep 0.1
+    assert_equal 0, sync.stat.mode & 1
+    config.rewind ; config.write "$flag = 1" ; config.flush
+    Process.kill :HUP, @pid 
+    sleep 0.1
+    sync.chmod 0 ; sleep 0.2
+    assert_equal 1, sync.stat.mode & 1
+  ensure
+    sync.close!
+  end
+
 end

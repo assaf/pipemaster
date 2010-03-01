@@ -7,9 +7,11 @@ require "pipemaster/socket_helper"
 module Pipemaster
 
   class Server < Struct.new(:listener_opts, :timeout, :logger,
-                            :app, :before_fork, :after_fork, :before_exec,
-                            :pid, :reexec_pid, :init_listeners,
-                            :master_pid, :config, :ready_pipe)
+                            :setup, :before_fork, :after_fork, :before_exec,
+                            :background, :commands,
+                            :pid, :reexec_pid, :master_pid,
+                            :config, :ready_pipe, :init_listeners)
+                            
 
     include SocketHelper
 
@@ -21,6 +23,9 @@ module Pipemaster
 
     # This hash maps PIDs to Workers
     WORKERS = {}
+
+    # Background workers.
+    BACKGROUND = []
 
     # We populate this at startup so we can figure out how to reexecute
     # and upgrade the currently running instance of Pipemaster
@@ -75,7 +80,6 @@ module Pipemaster
       config.commit!(self, :skip => [:listeners, :pid])
     end
 
-    attr_accessor :commands
 
     def start
       self.master_pid = $$
@@ -88,12 +92,12 @@ module Pipemaster
         Pipemaster::Util.reopen_logs
         logger.info "master done reopening logs"
       end
-      trap(:HUP)  { reloaded = true ; load_config! }
+      trap(:HUP)  { reloaded = true ; load_config! ; restart_background }
       trap(:USR2) { reexec }
 
       proc_name "pipemaster"
       logger.info "loading application"
-      app.call if app
+      setup.call if setup
 
       logger.info "master process ready" # test_exec.rb relies on this message
       if ready_pipe
@@ -110,9 +114,9 @@ module Pipemaster
       end
       config_listeners.each { |addr| listen(addr) }
 
-      reloaded = nil
       begin
         reloaded = false
+        restart_background
         while selected = Kernel.select(LISTENERS)
           selected.first.each do |socket|
             client = socket.accept_nonblock
@@ -295,6 +299,7 @@ module Pipemaster
         Process.kill(signal, wpid)
       rescue Errno::ESRCH
         worker = WORKERS.delete(wpid)
+        BACKGROUND.delete(wpid)
       end
     end
 
@@ -309,7 +314,8 @@ module Pipemaster
             self.pid = pid.chomp('.oldbin') if pid
             proc_name 'master'
           else
-            worker = WORKERS.delete(wpid) rescue nil
+            WORKERS.delete(wpid) rescue nil
+            BACKGROUND.delete(wpid)
             logger.info "reaped #{status.inspect} "
           end
         end
@@ -414,8 +420,42 @@ module Pipemaster
       ensure
         socket.close_write
         socket.close
-        exit
+        exit!
       end
+    end
+
+    def restart_background
+      # Gracefully shut down all backgroud processes.
+      BACKGROUND.delete_if { |wpid| Process.kill(:QUIT, wpid) rescue true }
+      # Start them again.
+      background.each do |name, block|
+        worker = Worker.new
+        pid = fork { run_in_background name, worker, &block }
+        BACKGROUND << pid
+        WORKERS[pid] = worker
+      end
+    end
+
+    def run_in_background(name, worker, &block)
+      trap(:QUIT) { exit }
+      [:TERM, :INT].each { |sig| trap(sig) { exit! } }
+      [:USR1, :USR2].each { |sig| trap(sig, nil) }
+      trap(:CHLD, 'DEFAULT')
+
+      WORKERS.clear
+      LISTENERS.each { |sock| sock.fcntl(Fcntl::F_SETFD, Fcntl::FD_CLOEXEC) }
+      proc_name "pipemaster: #{name}"
+      logger.info "#{Process.pid} background worker #{name}"
+      block.call self, worker
+      logger.info "#{Process.pid} finished worker #{name}"
+    rescue SystemExit => ex
+      logger.info "#{Process.pid} finished worker #{name}"
+    rescue =>ex
+      logger.info "#{Process.pid} failed: #{ex.message}" 
+      socket.write "#{ex.class.name}: #{ex.message}\n"
+      socket.write 127.chr
+    ensure
+      exit!
     end
 
   end

@@ -1,4 +1,3 @@
-source "http://gemcutter.org"
-gem "gemcutter"
+source "http://rubygems.org/"
 gem "rake"
 gem "yard"

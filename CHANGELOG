@@ -1,3 +1,23 @@
+0.5.0 (2010-03-01)
+This release adds background processes.  The Pipefile can specify multiple
+background activities.  Pipemaster starts each activity by forking a new child
+process (with the same environment as all other workers).
+
+When Pipemaster terminates, it terminates all child processes (QUIT or TERM,
+depending on signal).  In addition, when reloading the configuration (HUP),
+Pipemaster asks all background processes to terminate gracefully and restarts
+new background processes based on the new configuration.
+
+To define a background process:
+
+background :resque do |server, worker|
+  resque = Resque::Worker.new(:tasks)
+	resque.work(5) # interval, will block
+end
+
+* Added: Background processes.
+* Changed: Configuration method app becomes setup.  Same semantics, just better name.
+
 0.4.2 (2010-02-19)
 * Fix: Pipe command exits with retcode on successful completion.
 

@@ -1,6 +1,6 @@
 Gem::Specification.new do |spec|
   spec.name           = "pipemaster"
-  spec.version        = "0.4.2"
+  spec.version        = "0.5.0"
   spec.author         = "Assaf Arkin"
   spec.email          = "assaf@labnotes.org"
   spec.homepage       = "http://github.com/assaf/pipemaster"
