@@ -159,7 +159,7 @@ module Pipemaster
         name = name_or_hash.to_sym
         a_proc ||= block
         arity = a_proc.arity
-        (arity == 2 || arity < 0) or raise ArgumentError, "background #{name}#{a_proc.inspect} has invalid arity: #{arity} (need 2)"
+        (arity == 0 || arity < 0) or raise ArgumentError, "background #{name}#{a_proc.inspect} has invalid arity: #{arity} (need 0)"
         set[:background][name] = a_proc
       end
     end

@@ -430,6 +430,7 @@ module Pipemaster
       # Start them again.
       background.each do |name, block|
         worker = Worker.new
+        before_fork.call self, worker
         pid = fork { run_in_background name, worker, &block }
         BACKGROUND << pid
         WORKERS[pid] = worker
@@ -444,9 +445,10 @@ module Pipemaster
 
       WORKERS.clear
       LISTENERS.each { |sock| sock.fcntl(Fcntl::F_SETFD, Fcntl::FD_CLOEXEC) }
+      after_fork.call self, worker
       proc_name "pipemaster: #{name}"
       logger.info "#{Process.pid} background worker #{name}"
-      block.call self, worker
+      block.call
       logger.info "#{Process.pid} finished worker #{name}"
     rescue SystemExit => ex
       logger.info "#{Process.pid} finished worker #{name}"

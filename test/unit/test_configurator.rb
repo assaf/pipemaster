@@ -149,14 +149,14 @@ class TestConfigurator < Test::Unit::TestCase
 
   def test_background_proc
     test_struct = TestStruct.new
-    [ proc { |a,b| }, Proc.new { |a,b| }, lambda { |a,b| } ].each do |my_proc|
+    [ proc { }, Proc.new { |*a| }, lambda { |*a| } ].each do |my_proc|
       Pipemaster::Configurator.new(:background => { :foo => my_proc }).commit!(test_struct)
       assert_equal my_proc, test_struct.background[:foo]
     end
   end
 
   def test_background_wrong_arity
-    [ proc { |a| }, Proc.new { }, lambda { |a,b,c| } ].each do |my_proc|
+    [ proc { |a| }, Proc.new { |a,b| }, lambda { |a,b,c| } ].each do |my_proc|
       assert_raises(ArgumentError) do
         Pipemaster::Configurator.new(:background => { :foo => my_proc })
       end

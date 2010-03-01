@@ -10,7 +10,7 @@ new background processes based on the new configuration.
 
 To define a background process:
 
-background :resque do |server, worker|
+background :resque do
   resque = Resque::Worker.new(:tasks)
 	resque.work(5) # interval, will block
 end
