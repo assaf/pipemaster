@@ -96,7 +96,7 @@ module Pipemaster
       trap(:USR2) { reexec }
 
       proc_name "pipemaster"
-      logger.info "loading application"
+      logger.info "running setup"
       setup.call if setup
 
       logger.info "master process ready" # test_exec.rb relies on this message
