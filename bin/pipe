@@ -9,7 +9,12 @@ retcode = nil
 tty = false
 
 opts = OptionParser.new("", 24, '  ') do |opts|
-  opts.banner = "Usage: #{File.basename($0)} [options] command [args]\n"
+  opts.banner = "Usage: #{File.basename($0)} [options] command [args]\n" \
+                "\nCommon commands:\n" \
+                "  list  List all commands available on server (one name per line)\n" \
+                "  ping  Pings server (returns version number)\n"
+
+  opts.separator "\nOptions:"
 
   opts.on("-t", "--tty", "read input from terminal (default: false)") do |t|
     tty = t ? true : false

@@ -46,6 +46,50 @@ Step 3:  For a new shell, execute a command:
   Stand upside down!
 
 
+== Pipemaster, Resque and Rails
+
+This example uses Resque to queue and process tasks asynchronously, where the
+tasks are part of a larger Rails application (e.g. using ActiveRecord models,
+ActiveMailer).
+
+This Pipefile loads the Rails application once during setup.  It starts one
+Resque worker than polls for new jobs every 5 seconds.
+
+  #!/usr/bin/env ruby -S pipemaster
+  user  "nobody"
+
+  require "syslog_logger"
+  syslog = SyslogLogger.new("pipemaster")
+  class << syslog ; def close ; end ; end
+  logger syslog
+
+  setup do
+    # Load RAILS.  Diz will take a while.
+    require File.dirname(__FILE__) + '/config/environment'
+    ActiveRecord::Base.connection.disconnect!
+  end
+  after_fork do |server, worker|
+    ActiveRecord::Base.establish_connection
+  end
+
+  # Resque
+  background :resque do
+    resque = Resque::Worker.new("*")
+    resque.verbose = true
+    trap(:QUIT) { resque.shutdown } # graceful
+    resque.work(5)
+  end
+
+
+== Tips && tricks
+
+Add this at the top of your Pipefile for Ruby syntax highlighting:
+
+
+  #!ruby -S pipemaster
+
+
+
 == License
 
 Pipemaster is copyright of Assaf Arkin.  It is heavily based on the awesome

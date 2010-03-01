@@ -22,7 +22,7 @@ module Pipemaster
         },
       :pid => nil,
       :background => {},
-      :commands => {}
+      :commands => { }
     }
 
     def initialize(defaults = {}) #:nodoc:

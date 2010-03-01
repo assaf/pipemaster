@@ -1,3 +1,9 @@
+0.5.1 (2010-03-01)
+* Added: Ping command:
+  $ pipe ping
+  0.5.1
+* Added: List command, returns list of all available commands.
+
 0.5.0 (2010-03-01)
 This release adds background processes.  The Pipefile can specify multiple
 background activities.  Pipemaster starts each activity by forking a new child

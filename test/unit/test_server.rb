@@ -148,4 +148,14 @@ class ServerTest < Test::Unit::TestCase
     sync.close!
   end
 
+  def test_ping_command
+    start
+    assert_equal Pipemaster::VERSION, hit("127.0.0.1:#@port", :ping).last
+  end
+
+  def test_list_command
+    start :commands => { :foo => lambda { } }
+    assert_equal "foo\nlist\nping", hit("127.0.0.1:#@port", :list).last
+  end
+
 end

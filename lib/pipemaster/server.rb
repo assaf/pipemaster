@@ -387,6 +387,11 @@ module Pipemaster
       proc_name 'master (old)'
     end
 
+    DEFAULT_COMMANDS = {
+      :list => lambda { $stdout << (DEFAULT_COMMANDS.keys | commands.keys).sort.join("\n") },
+      :ping => lambda { $stdout << VERSION }
+    }
+
     def process_request(socket, worker)
       trap(:QUIT) { exit }
       [:TERM, :INT].each { |sig| trap(sig) { exit! } }
@@ -406,8 +411,13 @@ module Pipemaster
         logger.info "#{Process.pid} #{name} #{args.join(' ')}"
 
         ARGV.replace args
-        command = commands[name.to_sym] or raise ArgumentError, "No command #{name}"
-        command.call *args
+        if command = commands[name.to_sym]
+          command.call *args
+        elsif command = DEFAULT_COMMANDS[name.to_sym]
+          instance_eval &command
+        else
+          raise ArgumentError, "No command #{name}"
+        end
         logger.info "#{Process.pid} exit"
         socket.write 0.chr
       rescue SystemExit => ex
