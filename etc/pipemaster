@@ -1,8 +1,7 @@
 #!/bin/sh
 APP_ROOT=/var/myapp
+PID=/var/run/pipemaster.pid # Remember to use same PID path in your Pipefile.
 ENV=production
-# Remember to use same PID path in your Pipefile.
-PID=/var/run/pipemaster.pid
 CMD="pipemaster -D -E $ENV"
  
 old_pid="$PID.oldbin"
@@ -35,7 +34,7 @@ restart|reload)
 	$CMD
 	;;
 upgrade)
-	sig USR2 && sleep 3 && sig 0 && oldsig QUIT && exit 0
+	sig USR2 && sleep 5 && sig 0 && oldsig QUIT && exit 0
 	echo >&2 "Couldn't upgrade, starting '$CMD' instead"
 	$CMD
 	;;

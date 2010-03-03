@@ -82,9 +82,50 @@ module Pipemaster
 
 
     def start
+      BasicSocket.do_not_reverse_lookup = true
+
+      # inherit sockets from parents, they need to be plain Socket objects
+      # before they become UNIXServer or TCPServer
+      inherited = ENV['PIPEMASTER_FD'].to_s.split(/,/).map do |fd|
+        io = Socket.for_fd(fd.to_i)
+        set_server_sockopt(io, listener_opts[sock_name(io)])
+        IO_PURGATORY << io
+        logger.info "inherited addr=#{sock_name(io)} fd=#{fd}"
+        server_cast(io)
+      end
+
+      config_listeners = config[:listeners].dup
+      LISTENERS.replace(inherited)
+      # we start out with generic Socket objects that get cast to either
+      # TCPServer or UNIXServer objects; but since the Socket objects
+      # share the same OS-level file descriptor as the higher-level *Server
+      # objects; we need to prevent Socket objects from being garbage-collected
+      config_listeners -= listener_names
+      if config_listeners.empty? && LISTENERS.empty?
+        config_listeners << Pipemaster::DEFAULT_LISTEN
+        init_listeners << Pipemaster::DEFAULT_LISTEN
+        START_CTX[:argv] << "-s#{Pipemaster::DEFAULT_LISTEN}"
+      end
+      config_listeners.each { |addr| listen(addr) }
+      raise ArgumentError, "no listeners" if LISTENERS.empty?
+
+      self.pid = config[:pid]
       self.master_pid = $$
+      if setup
+        if defined?(Gem) && Gem.respond_to?(:refresh)
+          logger.info "Refreshing Gem list"
+          Gem.refresh
+        end
+        setup.call
+        logger.info "setup completed"
+      end
+      self
+    end
+
+    def join
       trap(:QUIT) { stop }
       [:TERM, :INT].each { |sig| trap(sig) { stop false } }
+      self.master_pid = $$
       self.pid = config[:pid]
       trap(:CHLD) { reap_all_workers }
       trap :USR1 do
@@ -92,27 +133,21 @@ module Pipemaster
         Pipemaster::Util.reopen_logs
         logger.info "master done reopening logs"
       end
-      trap(:HUP)  { reloaded = true ; load_config! ; restart_background }
-      trap(:USR2) { reexec }
+      trap :HUP do
+        reloaded = true
+        reap_all_workers
+        load_config!
+        restart_background
+      end
+      trap(:USR2) { reap_all_workers ; reexec }
 
-      proc_name "pipemaster"
-      logger.info "running setup"
-      setup.call if setup
-
+      $0 = "pipemaster"
       logger.info "master process ready" # test_exec.rb relies on this message
       if ready_pipe
         ready_pipe.syswrite($$.to_s)
         ready_pipe.close rescue nil
         self.ready_pipe = nil
       end
-
-      config_listeners = config[:listeners].dup
-      if config_listeners.empty? && LISTENERS.empty?
-        config_listeners << DEFAULT_LISTEN
-        init_listeners << DEFAULT_LISTEN
-        START_CTX[:argv] << "-s#{DEFAULT_LISTEN}"
-      end
-      config_listeners.each { |addr| listen(addr) }
 
       begin
         reloaded = false
@@ -135,10 +170,7 @@ module Pipemaster
         sleep 1 # This is often failure to bind, so wait a bit
         retry
       end
-      self
-    end
 
-    def join
       stop # gracefully shutdown all workers on our way out
       logger.info "master complete"
       unlink_pid_safe(pid) if pid
@@ -251,11 +283,6 @@ module Pipemaster
       rescue Errno::ENOENT
     end
 
-    def proc_name(tag)
-      $0 = ([ File.basename(START_CTX[0]), tag
-            ]).concat(START_CTX[:argv]).join(' ')
-    end
-
     # add a given address to the +listeners+ set, idempotently
     # Allows workers to add a private, per-process listener via the
     # after_fork hook.  Very useful for debugging and testing.
@@ -312,7 +339,7 @@ module Pipemaster
             logger.error "reaped #{status.inspect} exec()-ed"
             self.reexec_pid = 0
             self.pid = pid.chomp('.oldbin') if pid
-            proc_name 'master'
+            $0 = 'pipemaster'
           else
             WORKERS.delete(wpid) rescue nil
             BACKGROUND.delete(wpid)
@@ -363,9 +390,8 @@ module Pipemaster
         end
       end
 
-      listener_fds = LISTENERS.map { |sock| sock.fileno }
-      LISTENERS.delete_if { |s| s.close rescue nil ; true }
       self.reexec_pid = fork do
+        listener_fds = LISTENERS.map { |sock| sock.fileno }
         ENV['PIPEMASTER_FD'] = listener_fds.join(',')
         Dir.chdir(START_CTX[:cwd])
         cmd = [ START_CTX[0] ].concat(START_CTX[:argv])
@@ -384,7 +410,7 @@ module Pipemaster
         before_exec.call(self)
         exec(*cmd)
       end
-      proc_name 'master (old)'
+      $0 = 'pipemaster (old)'
     end
 
     DEFAULT_COMMANDS = {
@@ -407,7 +433,7 @@ module Pipemaster
         length = socket.readpartial(4).unpack("N")[0]
         name, *args = socket.read(length).split("\0")
 
-        proc_name "pipemaster: #{name}"
+        $0 = "pipemaster $#{name}"
         logger.info "#{Process.pid} #{name} #{args.join(' ')}"
 
         ARGV.replace args
@@ -418,13 +444,13 @@ module Pipemaster
         else
           raise ArgumentError, "No command #{name}"
         end
-        logger.info "#{Process.pid} exit"
+        logger.info "exit command #{name}"
         socket.write 0.chr
       rescue SystemExit => ex
-        logger.info "#{Process.pid} exit with #{ex.status}"
+        logger.info "exit command #{name} with #{ex.status}"
         socket.write ex.status.chr
       rescue Exception => ex
-        logger.info "#{Process.pid} failed: #{ex.message}" 
+        logger.info "failed command #{name}: #{ex.message}" 
         socket.write "#{ex.class.name}: #{ex.message}\n"
         socket.write 127.chr
       ensure
@@ -456,14 +482,14 @@ module Pipemaster
       WORKERS.clear
       LISTENERS.each { |sock| sock.fcntl(Fcntl::F_SETFD, Fcntl::FD_CLOEXEC) }
       after_fork.call self, worker
-      proc_name "pipemaster: #{name}"
-      logger.info "#{Process.pid} background worker #{name}"
+      $0 = "pipemaster/#{name}"
+      logger.info "background worker #{name}"
       block.call
-      logger.info "#{Process.pid} finished worker #{name}"
+      logger.info "finished worker #{name}"
     rescue SystemExit => ex
-      logger.info "#{Process.pid} finished worker #{name}"
+      logger.info "finished worker #{name} with #{ex.status}"
     rescue =>ex
-      logger.info "#{Process.pid} failed: #{ex.message}" 
+      logger.info "failed worker #{name}: #{ex.message}" 
       socket.write "#{ex.class.name}: #{ex.message}\n"
       socket.write 127.chr
     ensure
@@ -472,4 +498,3 @@ module Pipemaster
 
   end
 end
-

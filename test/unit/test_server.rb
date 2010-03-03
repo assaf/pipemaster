@@ -21,7 +21,7 @@ class ServerTest < Test::Unit::TestCase
   def start(options = nil)
     redirect_test_io do
       @server = Pipemaster::Server.new({:listeners => [ "127.0.0.1:#{@port}" ]}.merge(options || {}))
-      @pid = fork { @server.start }
+      @pid = fork { @server.start.join }
       at_exit { Process.kill :QUIT, @pid }
       wait_master_ready("test_stderr.#$$.log")
     end
@@ -81,10 +81,10 @@ class ServerTest < Test::Unit::TestCase
   end
   
   def test_streams
-    start :commands => { :reverse => lambda { $stdout << $stdin.read.reverse } }
-    client = Pipemaster::Client.new("127.0.0.1:#@port")
     tmp = Tempfile.new('input')
     ObjectSpace.undefine_finalizer(tmp)
+    start :commands => { :reverse => lambda { $stdout << $stdin.read.reverse } }
+    client = Pipemaster::Client.new("127.0.0.1:#@port")
     tmp.write "foo bar"
     tmp.flush
     tmp.rewind

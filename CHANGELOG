@@ -1,3 +1,7 @@
+0.5.2 (2010-03-02)
+* Added: Worker gets user method. Better here than on server. Server method is deprecated and will be removed soon.
+* Fixed: service pipemaster upgrade now working as expected.
+
 0.5.1 (2010-03-01)
 * Added: Ping command:
   $ pipe ping
